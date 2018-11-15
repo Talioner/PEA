@@ -23,19 +23,16 @@ namespace PEA
 			do
 			{
 				Console.WriteLine ();
-				Console.WriteLine ("PEA - problem komiwojażera");
+				Console.WriteLine ("ZSIK - problem komiwojażera");
 				Console.WriteLine ("-Menu główne");
 				Console.WriteLine ("--1. Wczytaj graf z pliku.");
 				Console.WriteLine ("--2. Przejrzyj właściwości grafu.");
-				Console.WriteLine ("--3. Rozwiąż problem za pomocą wybranego algorytmu.");
-				Console.WriteLine ("--4. Stwórz zestaw o określonej ilości miast.");
-				Console.WriteLine ("--5. Przeprowadź testy czasowe dla losowych instancji.");
-				Console.WriteLine ("--6. Przeprowadź testy czasowe dla danych z tsplib (Programowanie dynamiczne).");
-				Console.WriteLine ("--7. Przeprowadź testy dla danych z tsplib (Tabu Search).");
-				Console.WriteLine ("--8. Przeprowadź testy jakościowe parametrów dla gr48.tsp (Algorytm genetyczny).");
-				Console.WriteLine ("--9. Przeprowadź testy dla danych z tsplib (Algorytm genetyczny).");
+				Console.WriteLine ("--3. Rozwiąż problem algorytmem genetycznym.");
+                Console.WriteLine ("--4. Rozwiąż problem algorytmem genetycznym wielowątkowo.");
+                Console.WriteLine ("--5. Stwórz zestaw o określonej ilości miast.");
+                Console.WriteLine("--6. Rozwiaz problem algorytmem dynamicznym.");
 
-				primaryMenuKey = Console.ReadKey().KeyChar;
+                primaryMenuKey = Console.ReadKey().KeyChar;
 
 				switch (primaryMenuKey)
 				{
@@ -63,136 +60,152 @@ namespace PEA
 						Console.ReadKey();
 						break;
 					case '3':
-						do
-						{
-							Console.Clear ();
-							Console.WriteLine("---Algorytmy");
-							Console.WriteLine("----1. Rozwiąż algorytmem programowania dynamicznego.");
-							Console.WriteLine("----2. Rozwiąż algorytmem przeszukiwania z zakazami.");
-							Console.WriteLine("----3. Rozwiąż algorytmem genetycznym.");
+                        Console.Clear();
+                        int pop, elites;
+                        short startingIndex, endingIndex;
+                        double mutrate, crossrate;
 
-							secondaryMenuKey = Console.ReadKey().KeyChar;
+                        Console.WriteLine("---Podaj prawdopodobieństwo krzyżowania:");
+                        input = Console.ReadLine();
 
-							switch (secondaryMenuKey)
-							{
-								case '1':
-									cts = new CancellationTokenSource();
-									Console.Clear ();
-									Task.Run(() => {
-										while (!cts.IsCancellationRequested)
-										{
-											Console.Write(".");
-											Thread.Sleep(1000);
-										}
-									}, ct);
-									TspDynamicProgramming.SolveTsp(graph);
-									cts.Cancel();
-									cts.Dispose();
-									Console.WriteLine();
-									TspDynamicProgramming.ShowResults();			
-									TspDynamicProgramming.ClearCollections();
-									Console.ReadKey();
-									break;
-								case '2':
-									Console.Clear();
-									int mr, pt, tlc;
-									Console.WriteLine("---Podaj ilość restartów:");
-									input = Console.ReadLine();
+                        while (!double.TryParse(input, out crossrate))
+                        {
+                            input = Console.ReadLine();
+                        }
 
-									while (!Int32.TryParse(input, out mr))
-									{
-										input = Console.ReadLine();
-									}
+                        Console.WriteLine("---Podaj prawdopodobieństwo mutacji:");
+                        input = Console.ReadLine();
 
-									Console.WriteLine("---Podaj ilość prób bez polepszenia rezultatu:");
-									input = Console.ReadLine();
+                        while (!double.TryParse(input, out mutrate))
+                        {
+                            input = Console.ReadLine();
+                        }
 
-									while (!Int32.TryParse(input, out pt))
-									{
-										input = Console.ReadLine();
-									}
+                        Console.WriteLine("---Podaj wielkość populacji:");
+                        input = Console.ReadLine();
 
-									Console.WriteLine("---Podaj długość listy tabu:");
-									input = Console.ReadLine();
+                        while (!Int32.TryParse(input, out pop))
+                        {
+                            input = Console.ReadLine();
+                        }
 
-									while (!Int32.TryParse(input, out tlc))
-									{
-										input = Console.ReadLine();
-									}
-									cts = new CancellationTokenSource();
-									Console.Clear();
-									Task.Run(() => {
-										while (!cts.IsCancellationRequested)
-										{
-											Console.Write(".");
-											Thread.Sleep(1000);
-										}
-									}, ct);
-									TspTabuSearch.SolveTsp(graph, tlc, mr, pt);
-									cts.Cancel();
-									cts.Dispose();
-									Console.WriteLine();
-									TspTabuSearch.ShowResults();
-									Console.ReadKey();
-									break;
-								case '3':
-									Console.Clear();
-									int pop, elites;
-									double mutrate, crossrate;
-									Console.WriteLine("---Podaj prawdopodobieństwo krzyżowania:");
-									input = Console.ReadLine();
+                        Console.WriteLine("---Podaj liczbę elit:");
+                        input = Console.ReadLine();
 
-									while (!double.TryParse(input, out crossrate))
-									{
-										input = Console.ReadLine();
-									}
+                        while (!Int32.TryParse(input, out elites))
+                        {
+                            input = Console.ReadLine();
+                        }
 
-									Console.WriteLine("---Podaj prawdopodobieństwo mutacji:");
-									input = Console.ReadLine();
+                        Console.WriteLine("---Podaj wierzcholek startowy:");
+                        input = Console.ReadLine();
 
-									while (!double.TryParse(input, out mutrate))
-									{
-										input = Console.ReadLine();
-									}
+                        while (!short.TryParse(input, out startingIndex) || startingIndex < 0 || startingIndex > graph.Dimension-1)
+                        {
+                            input = Console.ReadLine();
+                        }
 
-									Console.WriteLine("---Podaj wielkość populacji:");
-									input = Console.ReadLine();
+                        Console.WriteLine("---Podaj wierzcholek koncowy:");
+                        input = Console.ReadLine();
 
-									while (!Int32.TryParse(input, out pop))
-									{
-										input = Console.ReadLine();
-									}
+                        while (!short.TryParse(input, out endingIndex) || startingIndex < 0 || startingIndex > graph.Dimension - 1)
+                        {
+                            input = Console.ReadLine();
+                        }
 
-									Console.WriteLine("---Podaj liczbę elit:");
-									input = Console.ReadLine();
+                        cts = new CancellationTokenSource();
+                        Console.Clear();
+                        Task.Run(() => {
+                            while (!cts.IsCancellationRequested)
+                            {
+                                Console.Write(".");
+                                Thread.Sleep(1000);
+                            }
+                        }, ct);
+                        TspGenetic.SolveTsp(graph, elites, crossrate, mutrate, pop, startingIndex, endingIndex, CrossoverType.OX, 300, 1000);
+                        cts.Cancel();
+                        cts.Dispose();
+                        Console.WriteLine();
+                        TspGenetic.ShowResults();
+                        Console.ReadKey();
+                        break;
+                    case '4':
+                        Console.Clear();
+                        int tasksAmount = 0;
 
-									while (!Int32.TryParse(input, out elites))
-									{
-										input = Console.ReadLine();
-									}
+                        Console.WriteLine("---Podaj ilosc watkow:");
+                        input = Console.ReadLine();
 
-									cts = new CancellationTokenSource();
-									Console.Clear();
-									Task.Run(() => {
-										while (!cts.IsCancellationRequested)
-										{
-											Console.Write(".");
-											Thread.Sleep(1000);
-										}
-									}, ct);
-									TspGenetic.SolveTsp(graph, elites, crossrate, mutrate, pop, CrossoverType.OX, 300, 1000);
-									cts.Cancel();
-									cts.Dispose();
-									Console.WriteLine();
-									TspGenetic.ShowResults();
-									Console.ReadKey();
-									break;
-								default:
-									break;
-							}
-						} while (secondaryMenuKey != 27); 
-						break;
-					case '4':
+                        while (!int.TryParse(input, out tasksAmount))
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        Console.WriteLine("---Podaj prawdopodobieństwo krzyżowania:");
+                        input = Console.ReadLine();
+
+                        while (!double.TryParse(input, out crossrate))
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        Console.WriteLine("---Podaj prawdopodobieństwo mutacji:");
+                        input = Console.ReadLine();
+
+                        while (!double.TryParse(input, out mutrate))
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        Console.WriteLine("---Podaj wielkość populacji:");
+                        input = Console.ReadLine();
+
+                        while (!Int32.TryParse(input, out pop))
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        Console.WriteLine("---Podaj liczbę elit:");
+                        input = Console.ReadLine();
+
+                        while (!Int32.TryParse(input, out elites))
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        Console.WriteLine("---Podaj wierzcholek startowy:");
+                        input = Console.ReadLine();
+
+                        while (!short.TryParse(input, out startingIndex) || startingIndex < 0 || startingIndex > graph.Dimension - 1)
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        Console.WriteLine("---Podaj wierzcholek koncowy:");
+                        input = Console.ReadLine();
+
+                        while (!short.TryParse(input, out endingIndex) || startingIndex < 0 || startingIndex > graph.Dimension - 1)
+                        {
+                            input = Console.ReadLine();
+                        }
+
+                        cts = new CancellationTokenSource();
+                        Console.Clear();
+                        Task.Run(() => {
+                            while (!cts.IsCancellationRequested)
+                            {
+                                Console.Write(".");
+                                Thread.Sleep(1000);
+                            }
+                        }, ct);
+                        TspGenetic.SolveTsp(graph, elites, crossrate, mutrate, pop, startingIndex, endingIndex, CrossoverType.OX, 300, 1000, tasksAmount);
+                        cts.Cancel();
+                        cts.Dispose();
+                        Console.WriteLine();
+                        TspGenetic.ShowResults();
+                        Console.ReadKey();
+                        break;
+                    case '5':
 						Console.Clear();
 						int dim, maxDist;
 						Console.WriteLine("---Podaj ilość miast:");
@@ -230,76 +243,25 @@ namespace PEA
 						Console.WriteLine("----Wymiary: " + graph.Dimension);
 						Console.ReadKey();
 						break;
-					case '5':
-						Console.Clear();
-						Console.WriteLine("Zostaną przprowadzone testy. Wciśnij ESC aby anulować albo dowolny klawisz aby kontynuować.");
-						secondaryMenuKey = Console.ReadKey().KeyChar;
-						if (secondaryMenuKey != 27)
-						{
-							Console.WriteLine("Wykonywane są testy dla tsp. Może to zająć dużo czasu.");
-							double[,] results = DpTests(false);
-							TimesToFile("DpTsp.txt", GetAverageTimes(results));
-							Console.WriteLine("Wykonywane są testy dla atsp. Może to zająć dużo czasu.");
-							results = DpTests(true);
-							TimesToFile("DpAtsp.txt", GetAverageTimes(results));
-							Console.WriteLine("Koniec testów. Wciśnij dowolny klawisz aby wrócić do menu.");
-							Console.ReadKey();
-						}
-						break;
-					case '6':
-						Console.Clear();
-						Console.WriteLine("Zostaną przprowadzone testy dla danych z tsplib. Wciśnij ESC aby anulować albo dowolny klawisz aby kontynuować.");
-						secondaryMenuKey = Console.ReadKey().KeyChar;
-						if (secondaryMenuKey != 27)
-						{
-							Console.WriteLine("Wykonywane są testy. Może to zająć dużo czasu.");
-							double[,] results = DpTestsTspLib();
-							TimesToFile("DpTspLib.txt", GetAverageTimes(results));
-							Console.WriteLine("Koniec testów. Wciśnij dowolny klawisz aby wrócić do menu.");
-							Console.ReadKey();
-						}
-						break;
-					case '7':
-						Console.Clear();
-						Console.WriteLine("Zostaną przprowadzone testy dla danych z tsplib. Wciśnij ESC aby anulować albo dowolny klawisz aby kontynuować.");
-						secondaryMenuKey = Console.ReadKey().KeyChar;
-						if (secondaryMenuKey != 27)
-						{
-							Console.WriteLine("Wykonywane są testy. Może to zająć dużo czasu.");
-							Tuple<double[,], int[,]> results = TsTestsTspLib();
-							TimesToFile("TsTspLibTests.txt", GetAverageTimes(results.Item1));
-							DistancesToFile("TsTspLibDistances.txt", GetAverageDistances(results.Item2));
-							Console.WriteLine("Koniec testów. Wciśnij dowolny klawisz aby wrócić do menu.");
-							Console.ReadKey();
-						}
-						break;
-					case '8':
-						Console.Clear();
-						Console.WriteLine("Zostaną przprowadzone testy dla danych z tsplib. Wciśnij ESC aby anulować albo dowolny klawisz aby kontynuować.");
-						secondaryMenuKey = Console.ReadKey().KeyChar;
-						if (secondaryMenuKey != 27)
-						{
-							Console.WriteLine("Wykonywane są testy. Może to zająć dużo czasu.");
-							GaParametersTests();
-							Console.WriteLine("Koniec testów. Wciśnij dowolny klawisz aby wrócić do menu.");
-							Console.ReadKey();
-						}
-						break;
-					case '9':
-						Console.Clear();
-						Console.WriteLine("Zostaną przprowadzone testy dla danych z tsplib. Wciśnij ESC aby anulować albo dowolny klawisz aby kontynuować.");
-						secondaryMenuKey = Console.ReadKey().KeyChar;
-						if (secondaryMenuKey != 27)
-						{
-							Console.WriteLine("Wykonywane są testy. Może to zająć dużo czasu.");
-							Tuple<double[,], int[,]> results = GaTestsTspLib();
-							TimesToFile("GaTspLibTests.txt", GetAverageTimes(results.Item1));
-							DistancesToFile("GaTspLibDistances.txt", GetAverageDistances(results.Item2));
-							Console.WriteLine("Koniec testów. Wciśnij dowolny klawisz aby wrócić do menu.");
-							Console.ReadKey();
-						}
-						break;
-					default:
+                    case '6':
+                        cts = new CancellationTokenSource();
+                        Console.Clear();
+                        Task.Run(() => {
+                            while (!cts.IsCancellationRequested)
+                            {
+                                Console.Write(".");
+                                Thread.Sleep(1000);
+                            }
+                        }, ct);
+                        TspDynamicProgramming.SolveTsp(graph);
+                        cts.Cancel();
+                        cts.Dispose();
+                        Console.WriteLine();
+                        TspDynamicProgramming.ShowResults();
+                        TspDynamicProgramming.ClearCollections();
+                        Console.ReadKey();
+                        break;
+                    default:
 						break;
 				}
 			} while (primaryMenuKey != 27);
@@ -600,7 +562,7 @@ namespace PEA
 			return returnTuple;
 		}
 
-		private static void GaParametersTests()
+		/*private static void GaParametersTests()
 		{
 			TspGraph graph = new TspGraph();
 			graph.ReadGraphFromFile(AppDomain.CurrentDomain.BaseDirectory + @"\tsplib\gr48.tsp");
@@ -678,9 +640,9 @@ namespace PEA
 			}
 
 			DistancesToFile("gr48-AllAverageDists.txt", allAvgDistances.ToArray());
-		}
+		}*/
 
-		private static Tuple<double[,], int[,]> GaTestsTspLib()
+		/*private static Tuple<double[,], int[,]> GaTestsTspLib()
 		{
 			double[,] timesArray = new double[10, 10];
 			int[,] distancesArray = new int[10, 10];
@@ -798,7 +760,7 @@ namespace PEA
 			Tuple<double[,], int[,]> returnTuple = new Tuple<double[,], int[,]>(timesArray, distancesArray);
 
 			return returnTuple;
-		}
+		}*/
 
 		private static double[] GetAverageTimes(double[,] times)
 		{
