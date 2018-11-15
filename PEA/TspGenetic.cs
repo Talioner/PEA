@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PEA
@@ -31,10 +32,19 @@ namespace PEA
 		public static double MutationRate { get; set; } //szansa na mutacje
 		public static int PathDistance { get; private set; } //dlugosc sciezki
 		public static TimeSpan TimeMeasured { get; private set; } //zmierzony czas wykonywania obliczen
-		#endregion
+        public static short startingIndex;
+        public static short endingIndex;
+        public static Mutex m = new Mutex();
+        public static int threadsAmount = 2;
+        public static List<List<List<Int16>>> threadsPopulations;
+        public static List<List<double>> threadsFitnessList;
+        public static bool solutionFound = false;
+        public static int taskId = 0;
+        #endregion
 
-		public static void SolveTsp(TspGraph input, int elitismSize, double crossoverRate, double mutationRate, int populationSize, CrossoverType cT, int limit = 300, int generations = 10000, int tournamentSize = 2)
+        public static void SolveTsp(TspGraph input, int elitismSize, double crossoverRate, double mutationRate, int populationSize, short startingIndex, short endingIndex, CrossoverType cT, int limit = 300, int generations = 10000, int tournamentSize = 2)
 		{
+            
 			if (input.Dimension > 2 && input.Name != null && input.GraphMatrix != null)
 			{
 				if (elitismSize % 2 == 1)
@@ -48,7 +58,7 @@ namespace PEA
 					Console.WriteLine("Wielkość populacji powinna być podzielna przez 2. Zmniejszono o 1.");
 				}
 
-				bool allright = Init(input, generations, populationSize, elitismSize, tournamentSize, mutationRate, crossoverRate, cT, limit);
+				bool allright = Init(input, generations, populationSize, elitismSize, tournamentSize, mutationRate, crossoverRate, cT, limit, startingIndex, endingIndex);
 
 				if (allright)
 				{
@@ -62,7 +72,7 @@ namespace PEA
 			else Console.WriteLine("Przed uruchomieniem algorytmu wczytaj odpowiednio dane wejściowe.\n(Wciśnij dowolny klawisz aby wrócić)");
 		}
 
-		private static bool Init(TspGraph input, int generations, int populationSize, int elitismSize, int tournamentSize, double mutationRate, double crossoverRate, CrossoverType cT, int limit)
+		private static bool Init(TspGraph input, int generations, int populationSize, int elitismSize, int tournamentSize, double mutationRate, double crossoverRate, CrossoverType cT, int limit, short sIndex, short eIndex, int tasksAmount = 1)
 		{
 			try
 			{
@@ -79,16 +89,50 @@ namespace PEA
 				rand2 = new Random();
 				cType = cT;
 				timeLimit = limit;
+                startingIndex = sIndex;
+                endingIndex = eIndex;
+                solutionFound = false;
+                threadsAmount = tasksAmount;
+                taskId = 0;
+
+                threadsFitnessList = new List<List<double>>(threadsAmount);
+                for(int i = 0; i < threadsAmount; i++)
+                {
+                    threadsFitnessList.Add(new List<double>(populationSize / threadsAmount));
+                }
+
+                threadsPopulations = new List<List<List<Int16>>>(threadsAmount);
+
+                for (int i = 0; i < threadsAmount; i++)
+                {
+                    threadsPopulations.Add(new List<List<Int16>>(populationSize / threadsAmount));
+                    for (int j = 0; j < threadsPopulations[i].Capacity; j++) {
+                        threadsPopulations[i].Add(new List<short>(numbOfCities));
+                        threadsPopulations[i][j].Add(startingIndex);
+                        for (Int16 k = 0; k < threadsPopulations[i][j].Capacity; k++)
+                        {
+                            if (k == startingIndex || k == endingIndex) continue;
+                            threadsPopulations[i][j].Add(k);
+                        }
+                        threadsPopulations[i][j].Add(endingIndex);
+                        RandomizeSolution(threadsPopulations[i][j], j);
+                        threadsFitnessList[i].Add(CalculateFitness(threadsPopulations[i][j]));
+                    }
+                }
 
 				fitnessList = new List<double>(populationSize);
 				population = new List<List<Int16>>(populationSize);
 
 				for (int i = 0; i < population.Capacity; i++)
 				{
-					population.Add(new List<short>(numbOfCities + 1));
-					for (Int16 j = 0; j < population[i].Capacity - 1; j++)
-						population[i].Add(j);
-					population[i].Add(0);
+					population.Add(new List<short>(numbOfCities));
+                    population[i].Add(startingIndex);
+                    for (Int16 j = 0; j < population[i].Capacity; j++)
+                    {
+                        if (j == startingIndex || j == endingIndex) continue;
+                        population[i].Add(j);
+                    }
+					population[i].Add(endingIndex);
 					RandomizeSolution(population[i], i);
 					fitnessList.Add(CalculateFitness(population[i]));
 				}
@@ -102,105 +146,143 @@ namespace PEA
 			return true;
 		}
 
-		private static void Search()
-		{
-			double currentRunningTime = 0;
-			for (int i = 0; i < Generations; i++)
-			{
-				population = NextGeneration();
-				//Debug.WriteLine("PopulationSize: " + population.Count);
-				//if (i % 20 == 19)
-					//Debug.WriteLine("Generation: " + i);
-				
-				fitnessList = new List<double>(PopulationSize);
 
-				for (int j = 0; j < fitnessList.Capacity; j++)
-					fitnessList.Add(CalculateFitness(population[j]));
+        private static void Search()
+        {
+            double currentRunningTime = 0;
 
-				int tempMaxIndex = FindFittest(fitnessList);
+            var populations = new List<List<List<Int16>>>();
 
-				if (fitnessList[tempMaxIndex] > globalBestFitness)
-				{
-					globalBestFitness = fitnessList[tempMaxIndex];
-					globalBestSolution = population[tempMaxIndex];
-				}
+            if (threadsAmount > 0)
+            {                 
+                for (int i = 0; i < threadsAmount; i++)
+                {
+                    populations.Add(new List<List<Int16>>());
+                    for (int j = i * (PopulationSize / threadsAmount); j < (i + 1) * (PopulationSize / threadsAmount); j++)
+                    {
+                        populations[i].Add(population[j]);
+                    }
+                }
+            }
 
-				currentRunningTime = stopwatch.Elapsed.TotalSeconds;
-				Debug.WriteLine(currentRunningTime);
-				if (currentRunningTime > timeLimit)
-					break;
-				//if (i % 1000 == 999)
-					//Debug.WriteLine("Current best fitness:" + globalBestFitness);
-			}
-
+            threadsPopulations = populations;
+            
+            List<Task> tasks = new List<Task>(threadsAmount);
+            for (int i = 0; i < threadsAmount; i++)
+                tasks.Add(Task.Run(() => findSolution()));
+            Task.WaitAll(tasks.ToArray());
+                               
 			OutputList = globalBestSolution;
 			PathDistance = CalculateCost(OutputList);
-		}
+        }
 
-		private static List<List<Int16>> NextGeneration()
+        private static void findSolution()
+        {
+            int id = taskId++;
+            double currentRunningTime = 0;
+
+            for (int i = 0; i < Generations; i++)
+            {
+                if (solutionFound)
+                    break;
+
+                threadsPopulations[id] = NextGeneration(id);
+
+                threadsFitnessList[id] = new List<double>(PopulationSize / threadsAmount);
+
+                for(int j = 0; j < threadsFitnessList[id].Capacity; j++)
+                    threadsFitnessList[id].Add(CalculateFitness(threadsPopulations[id][j]));
+
+                int tempMaxIndex = FindFittest(threadsFitnessList[id]);
+
+                
+                if(threadsFitnessList[id][tempMaxIndex] > globalBestFitness)
+                {
+                    m.WaitOne();
+                    globalBestFitness = threadsFitnessList[id][tempMaxIndex];
+                    globalBestSolution = threadsPopulations[id][tempMaxIndex];
+                    m.ReleaseMutex();
+                }
+
+                m.WaitOne();
+                if(CalculateCost(globalBestSolution) <= TspDynamicProgramming.PathDistance * 1.05)
+                {
+                    solutionFound = true;
+                    m.ReleaseMutex();
+                    break;
+                }
+                m.ReleaseMutex();
+                                             
+
+                currentRunningTime = stopwatch.Elapsed.TotalSeconds;
+                Debug.WriteLine(currentRunningTime);
+                if (currentRunningTime > timeLimit)
+                    break;
+            }
+        }
+
+		private static List<List<Int16>> NextGeneration(int id)
 		{
-			List<List<Int16>> newPopulation = new List<List<Int16>>(PopulationSize);
-			ChooseElites(newPopulation);
-
-			for (int i = 0; i < (PopulationSize - ElitismSize) / 2; i++)
+			List<List<Int16>> newPopulation = new List<List<Int16>>(PopulationSize/threadsAmount);
+			ChooseElites(newPopulation, id);
+			
+			while (newPopulation.Count != (PopulationSize / threadsAmount))
 			{
-				while (newPopulation.Count != PopulationSize)
+				if (rand1.NextDouble() < CrossoverRate)
 				{
-					if (rand1.NextDouble() < CrossoverRate)
+					List<Int16> parentA = TournamentSelection(id);
+					List<Int16> parentB = TournamentSelection(id);
+					Tuple<List<Int16>, List<Int16>> children;
+					switch (cType)
 					{
-						List<Int16> parentA = TournamentSelection();
-						List<Int16> parentB = TournamentSelection();
-						Tuple<List<Int16>, List<Int16>> children;
-						switch (cType)
-						{
-							case CrossoverType.OX:
-								children = CrossoverOX(parentA, parentB);
-								break;
-							case CrossoverType.PMX:
-								children = CrossoverPMX(parentA, parentB);
-								break;
-							case CrossoverType.Other:
-								children = Crossover(parentA, parentB);
-								break;
-							default:
-								children = CrossoverOX(parentA, parentB);
-								break;
-						}
-
-						//Tuple<List<Int16>, List<Int16>> children = CrossoverOX(parentA, parentB);
-						List<Int16> child1 = children.Item1;
-						List<Int16> child2 = children.Item2;
-
-						if (rand1.NextDouble() < MutationRate)
-							MutationInvert(child1);
-						if (rand2.NextDouble() < MutationRate)
-							MutationInvert(child2);
-						newPopulation.Add(child1);
-						newPopulation.Add(child2);
+						case CrossoverType.OX:
+							children = CrossoverOX(parentA, parentB);
+							break;
+						case CrossoverType.PMX:
+							children = CrossoverPMX(parentA, parentB);
+							break;
+						case CrossoverType.Other:
+							children = Crossover(parentA, parentB);
+							break;
+						default:
+							children = CrossoverOX(parentA, parentB);
+							break;
 					}
+
+					//Tuple<List<Int16>, List<Int16>> children = CrossoverOX(parentA, parentB);
+					List<Int16> child1 = children.Item1;
+					List<Int16> child2 = children.Item2;
+
+					if (rand1.NextDouble() < MutationRate)
+						MutationInvert(child1);
+					if (rand2.NextDouble() < MutationRate)
+						MutationInvert(child2);
+					newPopulation.Add(child1);
+					newPopulation.Add(child2);
 				}
 			}
+			
 
 			return newPopulation;
-		}
+		}       
 
-		private static List<Int16> TournamentSelection()
+        private static List<Int16> TournamentSelection(int id)
 		{
-			int index = rand1.Next(PopulationSize);
+			int index = rand1.Next(PopulationSize/threadsAmount);
 			int bestIndex = index;
-			double bestFitness = fitnessList[index];
+			double bestFitness = threadsFitnessList[id][index];
 
 			for (int i = 1; i < TournamentSize; i++)
 			{
-				index = rand1.Next(PopulationSize);
-				if (fitnessList[index] > bestFitness)
+				index = rand1.Next(PopulationSize/threadsAmount);
+				if (threadsFitnessList[id][index] > bestFitness)
 				{
-					bestFitness = fitnessList[index];
+					bestFitness = threadsFitnessList[id][index];
 					bestIndex = index;
 				}
 			}
 
-			List<Int16> best = population[bestIndex];
+			List<Int16> best = threadsPopulations[id][bestIndex];
 
 			return best;
 		}
@@ -222,10 +304,10 @@ namespace PEA
 			return maxIndex;
 		}
 
-		private static void ChooseElites(List<List<Int16>> newGeneration)
+		private static void ChooseElites(List<List<Int16>> newGeneration, int id)
 		{
-			List<List<Int16>> oldGeneration = new List<List<Int16>>(population);
-			List<double> oldFitnessList = new List<double>(fitnessList);
+			List<List<Int16>> oldGeneration = new List<List<Int16>>(threadsPopulations[id]);
+			List<double> oldFitnessList = new List<double>(threadsFitnessList[id]);
 			int maxIndex;
 
 			for (int i = 0; i < ElitismSize; i++)
@@ -311,13 +393,15 @@ namespace PEA
 			List<Int16> child1 = new List<Int16>(parentA.Count);
 			List<Int16> child2 = new List<Int16>(parentA.Count);
 
-			for (int i = 0; i < child1.Capacity; i++)
+			for (int i = 0; i < child1.Capacity - 1; i++)
 			{
-				child1.Add(0);
-				child2.Add(0);
+				child1.Add(startingIndex);
+				child2.Add(startingIndex);
 			}
+            child1.Add(endingIndex);
+            child2.Add(endingIndex);
 
-			for (int i = startIndex; i <= endIndex; i++)
+            for (int i = startIndex; i <= endIndex; i++)
 			{
 				child1[i] = parentA[i];
 				child2[i] = parentB[i];
